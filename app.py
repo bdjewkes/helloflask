@@ -1,25 +1,24 @@
 #!flask/bin/python
 from flask import Flask, jsonify, abort, make_response, request, url_for
 from flask.ext.httpauth import HTTPBasicAuth
+import json
 
 
 app = Flask(__name__)
 
 
-tasks = [
-    {
-        'id': 1,
-        'title': u'Buy groceries',
-        'description': u'Milk, Cheese, Pizza, Fruit, Tylenol', 
-        'done': False
-    },
-    {
-        'id': 2,
-        'title': u'Learn Python',
-        'description': u'Need to find a good Python tutorial on the web', 
-        'done': False
-    }
-]
+tasks = []
+
+def read_tasks():
+    with open('taskdata.json') as data_file:
+        data = json.load(data_file)
+    return data
+
+def write_tasks(data):
+    with open('taskdata.json', 'w') as data_file:
+        json.dump(data, data_file)
+
+
 
 auth = HTTPBasicAuth()
 
@@ -37,12 +36,13 @@ def unauthorized():
 @app.route('/todo/api/v1.0/tasks', methods=['GET'])
 @auth.login_required
 def get_tasks():
-    return jsonify({'tasks': [make_public_task(task) for task in tasks]})
+    task_data = read_tasks()
+    return jsonify({'tasks': [make_public_task(task) for task in task_data]})
 
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods=['GET'])
 @auth.login_required
 def get_task(task_id):
-    task = [task for task in tasks if task['id'] == task_id]
+    task = [task for task in read_tasks() if task['id'] == task_id]
     if len(task) ==0:
         abort(404)
     return jsonify({'task': make_public_task(task[0])})
@@ -64,12 +64,15 @@ def create_task():
         'description': request.json.get('description', ""),
         'done': False
     }
+    tasks = read_tasks()
     tasks.append(task)
+    write_tasks(tasks)
     return jsonify({'task': make_public_task(task)}), 201
 
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods=['PUT'])
 @auth.login_required
 def update_task(task_id):
+    tasks = read_tasks()
     task = [task for task in tasks if task['id'] == task_id]
     if len(task) == 0:
         abort(404)
@@ -84,6 +87,7 @@ def update_task(task_id):
     task[0]['title'] = request.json.get('title', task[0]['title'])
     task[0]['description'] = request.json.get('description', task[0]['description'])
     task[0]['done'] = request.json.get('done', task[0]['done'])
+    write_tasks(tasks)
     return jsonify({'task': make_public_task(task[0])})
 
 @app.route('/todo/api/v1.0/tasks/<int:task_id>', methods=['DELETE'])
@@ -92,7 +96,9 @@ def delete_task(task_id):
     task = [task for task in tasks if task['id'] == task_id]
     if len(task) == 0:
         abort(404)
+    tasks = read_tasks()
     tasks.remove(task[0])
+    write_tasks(tasks)
     return jsonify({'result': True})
 
 
